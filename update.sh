@@ -37,7 +37,7 @@ function update_self {
 
 function update_system {
   apk --no-cache --no-progress upgrade && \
-  apk --no-cache --no-progress add iptables bash ca-certificates tzdata curl
+  apk --no-cache --no-progress add iptables bash ca-certificates tzdata curl dnsmasq
 }
 # 更新 koolproxy
 function update_koolproxy {

@@ -72,7 +72,7 @@ function flush_iptables {
   iptables -t filter -F
   iptables -t filter -X
 }
-
+# 掩码位数转为16进制(8 -> ff000000,16 -> ffff0000,24 - > ffffff00)
 function cdr2mask {
    # Number of args to shift, 255..255, first non-255 byte, zeroes
    set -- $(( 5 - ($1 / 8) )) 255 255 255 255 $(( (255 << (8 - ($1 % 8))) & 255 )) 0 0 0
@@ -128,9 +128,9 @@ function start_koolproxy {
   echo  "$(date +%Y-%m-%d\ %T) Starting koolproxy.."
   if [ "$ad_filter" = 'kp' ]; then
     mkdir -p ${CONFIG_PATH}/koolproxydata
-    chown -R daemon:daemon ${CONFIG_PATH}/koolproxydata
-    #su -s/bin/sh -c'/koolproxy/koolproxy -d -l2 -p65080 -b'${CONFIG_PATH}'/koolproxydata' daemon
-    /koolproxy/koolproxy -d -l2 --mark -p65080 -b${CONFIG_PATH}/koolproxydata
+    # chown -R daemon:daemon ${CONFIG_PATH}/koolproxydata
+    # su -s/bin/sh -c'/koolproxy/koolproxy -d -p65080 -b'${CONFIG_PATH}'/koolproxydata' daemon
+    /koolproxy/koolproxy -d --mark -p65080 -b${CONFIG_PATH}/koolproxydata
 
     iptables -t nat -N KOOLPROXY
     iptables -t nat -N KP_OUT
@@ -161,15 +161,33 @@ function stop_koolproxy {
   killall koolproxy &>/dev/null
 }
 
+function start_resolver {
+  echo  "$(date +%Y-%m-%d\ %T) Starting dnsmasq.."
+  dnsmasq -C <(cat <<EOF
+$([ "$dnsmasq_log_enable" = 'true' ] && echo 'log-queries')
+log-facility = $dnsmasq_log_file
+log-async = 20
+domain-needed
+cache-size = $dnsmasq_cache_size
+$([ $(dnsmasq --help | grep -c min-cache-ttl) -ne 0 ] && echo "min-cache-ttl = $dnsmasq_cache_time")
+no-negcache
+addn-hosts=$dnsmasq_addn_hosts
+no-resolv
+port = 53
+server = 127.0.0.1#60053
+EOF
+)
+}
+
 function start {
   sysctl -w net.ipv4.ip_forward=1 &>/dev/null
   for dir in $(ls /proc/sys/net/ipv4/conf); do
       sysctl -w net.ipv4.conf.$dir.send_redirects=0 &>/dev/null
   done
-
+  start_resolver
   start_iptables
 
-  echo "nameserver 127.0.0.1" > /etc/resolv.conf
+  # echo "nameserver 127.0.0.1" > /etc/resolv.conf
   echo "$(date +%Y-%m-%d\ %T) Starting clash.."
   /clash -d /etc/clash-gateway/ &> /var/log/clash.log &
 
@@ -196,6 +214,8 @@ function stop {
 
   echo "$(date +%Y-%m-%d\ %T) Stoping clash.."
   killall clash &>/dev/null; \
+ echo "$(date +%Y-%m-%d\ %T) Stoping dnsmasq.."
+  killall dnsmasq &> /dev/null; \
   return 0
 }
 
