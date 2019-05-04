@@ -110,7 +110,7 @@ function start_iptables {
 
   for intranet in "${ipts_intranet[@]}"; do
     # handle dns
-    iptables -t nat -A HANDLE_DNS -p udp -s $intranet --dport 53 -j REDIRECT --to-ports 60053
+    iptables -t nat -A HANDLE_DNS -p udp -s $intranet --dport 53 -j REDIRECT --to-ports 53
     # 内网地址 return
     iptables -t nat -A NEED_ACCEPT -d $intranet -j ACCEPT
     check_snat_rule
